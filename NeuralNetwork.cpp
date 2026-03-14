@@ -1,6 +1,8 @@
 // includes
 #include "NeuralNetwork.hpp"
 #include "Trace.hpp"
+#include <unordered_set>
+#include <algorithm>
 using namespace std;
 
 
@@ -9,37 +11,40 @@ using namespace std;
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::eval() {
-    //stub
+    evaluating = true;
+    return;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::train() {
-    //stub
+    evaluating = false;
+    return;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setLearningRate(double lr) {
-    //stub
+    learningRate = lr;
+    return;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setInputNodeIds(std::vector<int> inputNodeIds) {
-    //stub
+    this->inputNodeIds = inputNodeIds;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setOutputNodeIds(std::vector<int> outputNodeIds) {
-    //stub
+    this->outputNodeIds = outputNodeIds;
 }
 
 // STUDENT TODO: IMPLEMENT
 vector<int> NeuralNetwork::getInputNodeIds() const {
-    return vector<int>(); //stub
+    return inputNodeIds;
 }
 
 // STUDENT TODO: IMPLEMENT
 vector<int> NeuralNetwork::getOutputNodeIds() const {
-    return vector<int>(); //stub
+    return outputNodeIds;
 }
 
 // STUDENT TODO: IMPLEMENT
@@ -53,6 +58,40 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
         cerr << "\tNeuralNet expected input size: " << inputNodeIds.size() << endl;
         cerr << "\tBut got: " << input.size() << endl;
         return vector<double>();
+    }
+
+    for(int i = 0; i < inputNodeIds.size(); i++) {
+        nodes[inputNodeIds[i]]->postActivationValue = input[i];
+    }
+
+    queue<int> q;
+    unordered_set<int> visited;
+
+    for(int id : inputNodeIds) {
+        q.push(id);
+    }
+
+    while(!q.empty()) {
+
+        int curr = q.front();
+        q.pop();
+
+        if(!visited.count(curr)) {
+
+            if(find(inputNodeIds.begin(), inputNodeIds.end(), curr) == inputNodeIds.end()) {
+                visitPredictNode(curr);
+            }
+            visited.insert(curr);
+
+            for(auto &it : adjacencyList[curr]) {
+
+                Connection &c = it.second;
+
+                visitPredictNeighbor(c);
+
+                q.push(c.dest);
+            }
+        }
     }
 
     // BFT implementation goes here.
@@ -82,6 +121,10 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
 // STUDENT TODO: IMPLEMENT
 bool NeuralNetwork::contribute(double y, double p) {
 
+    for(auto a : outputNodeIds) {
+        contribute(a, y, p);
+    }
+
     // DFT implementation goes here.
     // This function initiates the recursion by calling the recursive helper
     // starting from each input layer node.
@@ -106,13 +149,26 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
     NodeInfo* currNode = nodes.at(nodeId);
 
     // If this node is already in the contributions map, return its stored value immediately.
-
+    if(contributions.count(nodeId)) return contributions[nodeId];
     if (adjacencyList.at(nodeId).empty()) {
         // Base case: output node (no outgoing connections).
         // Seeds the backward pass with the initial error signal.
         // You do not need to understand this derivation.
         outgoingContribution = -1 * ((y - p) / (p * (1 - p)));
+        contributions[nodeId] = outgoingContribution;
+        return outgoingContribution;
     }
+
+    for(auto &it : adjacencyList[nodeId]) {
+
+        Connection &c = it.second;
+
+        incomingContribution = contribute(c.dest, y, p);
+
+        visitContributeNeighbor(c, incomingContribution, outgoingContribution);
+    }
+    visitContributeNode(nodeId, outgoingContribution);
+    contributions[nodeId] = outgoingContribution;
 
     // Before returning, store outgoingContribution in the contributions map.
 
@@ -120,6 +176,19 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
 }
 // STUDENT TODO: IMPLEMENT
 bool NeuralNetwork::update() {
+
+    for(auto node : nodes) {
+        node->bias -= learningRate * (node->delta / batchSize);
+        node->delta = 0;
+    }
+
+    for(int i = 0; i < adjacencyList.size(); i++) {
+        for(auto &it : adjacencyList[i]) {
+            Connection &c = it.second;
+            c.weight -= learningRate * (c.delta / batchSize);
+            c.delta = 0;
+        }
+    }
     // apply the derivative contributions
 
     // traverse the graph in anyway you want. 
