@@ -39,12 +39,12 @@ void NeuralNetwork::setOutputNodeIds(std::vector<int> outputNodeIds) {
 
 // STUDENT TODO: IMPLEMENT
 vector<int> NeuralNetwork::getInputNodeIds() const {
-    return inputNodeIds;
+    return this->inputNodeIds;
 }
 
 // STUDENT TODO: IMPLEMENT
 vector<int> NeuralNetwork::getOutputNodeIds() const {
-    return outputNodeIds;
+    return this->outputNodeIds;
 }
 
 // STUDENT TODO: IMPLEMENT
@@ -62,7 +62,9 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
 
     for(int i = 0; i < inputNodeIds.size(); i++) {
         nodes[inputNodeIds[i]]->postActivationValue = input[i];
+        //cout << "input: " << input[i];
     }
+    //cout << endl;
 
     queue<int> q;
     unordered_set<int> visited;
@@ -86,14 +88,16 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
             for(auto &it : adjacencyList[curr]) {
 
                 Connection &c = it.second;
-
+                
                 visitPredictNeighbor(c);
 
                 q.push(c.dest);
             }
         }
     }
-
+    //for(int i = 0; i <= outputNodeIds.at(0); i++) {
+        //cout << i << ": " << nodes.at(i)->postActivationValue << endl;
+    //}
     // BFT implementation goes here.
     // Note: before traversal begins, each input value in `input` must be loaded into
     // the corresponding input node's postActivationValue. Input nodes are not activated —
@@ -103,10 +107,14 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
 
     vector<double> output;
     for (int i = 0; i < outputNodeIds.size(); i++) {
+        //cout << "i: " << i;
         int dest = outputNodeIds.at(i);
+        //cout << "dest: " << dest;
         NodeInfo* outputNode = nodes.at(dest);
         output.push_back(outputNode->postActivationValue);
+        //cout << "outputNode->postActivationValue: " << outputNode->postActivationValue << endl;
     }
+    //cout << "outputNodeIds: " << outputNodeIds.size() << endl;
 
     if (evaluating) {
         flush();
@@ -121,7 +129,7 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
 // STUDENT TODO: IMPLEMENT
 bool NeuralNetwork::contribute(double y, double p) {
 
-    for(auto a : outputNodeIds) {
+    for(auto a : inputNodeIds) {
         contribute(a, y, p);
     }
 
@@ -154,9 +162,9 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
         // Base case: output node (no outgoing connections).
         // Seeds the backward pass with the initial error signal.
         // You do not need to understand this derivation.
-        outgoingContribution = -1 * ((y - p) / (p * (1 - p)));
-        contributions[nodeId] = outgoingContribution;
-        return outgoingContribution;
+        outgoingContribution = -1 * ((y - p) / (p * (1.0 - p)));
+        //contributions[nodeId] = outgoingContribution;
+        //return outgoingContribution;
     }
 
     for(auto &it : adjacencyList[nodeId]) {
@@ -167,6 +175,7 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
 
         visitContributeNeighbor(c, incomingContribution, outgoingContribution);
     }
+    if(find(inputNodeIds.begin(), inputNodeIds.end(), nodeId) == inputNodeIds.end())
     visitContributeNode(nodeId, outgoingContribution);
     contributions[nodeId] = outgoingContribution;
 
@@ -178,14 +187,14 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
 bool NeuralNetwork::update() {
 
     for(auto node : nodes) {
-        node->bias -= learningRate * (node->delta / batchSize);
+        node->bias -= learningRate * node->delta;
         node->delta = 0;
     }
 
     for(int i = 0; i < adjacencyList.size(); i++) {
         for(auto &it : adjacencyList[i]) {
             Connection &c = it.second;
-            c.weight -= learningRate * (c.delta / batchSize);
+            c.weight -= learningRate * c.delta;
             c.delta = 0;
         }
     }
@@ -476,10 +485,13 @@ double NeuralNetwork::assess(DataLoader dl) {
     for (int i = 0; i < dl.getData().size(); i++) {
         DataInstance di = dl.getData().at(i);
         output = predict(di);
+        //for(auto a : output) cout << a;
+        //cout << endl;
         if (static_cast<int>(round(output.at(0))) == di.y) {
             correct++;
         }
         count++;
+        //cout << di.y << endl;
     }
 
     if (dl.getData().empty()) {

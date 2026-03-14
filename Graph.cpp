@@ -97,7 +97,6 @@ void Graph::updateNode(int id, NodeInfo n) {
     }
     if(nodes[id] != nullptr)
     delete nodes[id];
-
     nodes[id] = new NodeInfo(n);
 }
 
